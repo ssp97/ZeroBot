@@ -141,6 +141,7 @@ func (ws *WSClient) CallApi(req zero.APIRequest) (zero.APIResponse, error) {
 		}
 		return rsp, nil
 	case <-time.After(30 * time.Second):
+		ws.seqMap.Delete(req.Echo)
 		return nullResponse, errors.New("timed out")
 	}
 }
