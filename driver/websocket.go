@@ -87,17 +87,19 @@ func (ws *WSClient) Listen(handler func([]byte, zero.APICaller)) {
 			rsp := gjson.Parse(helper.BytesToString(payload))
 			if rsp.Get("echo").Exists() { // 存在echo字段，是api调用的返回
 				log.Debug("接收到API调用返回: ", strings.TrimSpace(helper.BytesToString(payload)))
-				if c, ok := ws.seqMap.LoadAndDelete(rsp.Get("echo").Uint()); ok {
-					c <- zero.APIResponse{ // 发送api调用响应
-						Status:  rsp.Get("status").String(),
-						Data:    rsp.Get("data"),
-						Msg:     rsp.Get("msg").Str,
-						Wording: rsp.Get("wording").Str,
-						RetCode: rsp.Get("retcode").Int(),
-						Echo:    rsp.Get("echo").Uint(),
+				go func(rsp gjson.Result) {
+					if c, ok := ws.seqMap.LoadAndDelete(rsp.Get("echo").Uint()); ok {
+						c <- zero.APIResponse{ // 发送api调用响应
+							Status:  rsp.Get("status").String(),
+							Data:    rsp.Get("data"),
+							Msg:     rsp.Get("msg").Str,
+							Wording: rsp.Get("wording").Str,
+							RetCode: rsp.Get("retcode").Int(),
+							Echo:    rsp.Get("echo").Uint(),
+						}
+						close(c) // channel only use once
 					}
-					close(c) // channel only use once
-				}
+				}(rsp)
 			} else {
 				if rsp.Get("meta_event_type").Str != "heartbeat" { // 忽略心跳事件
 					log.Debug("接收到事件: ", helper.BytesToString(payload))
