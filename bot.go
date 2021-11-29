@@ -1,6 +1,7 @@
 package zero
 
 import (
+	"encoding/json"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -17,7 +18,6 @@ type Config struct {
 	NickName      []string `json:"nickname"`       // 机器人名称
 	CommandPrefix string   `json:"command_prefix"` // 触发命令
 	SuperUsers    []string `json:"super_users"`    // 超级用户
-	SelfID        string   `json:"self_id"`        // 机器人账号
 	Driver        []Driver `json:"-"`              // 通信驱动
 }
 
@@ -33,6 +33,7 @@ type APICaller interface {
 type Driver interface {
 	Connect()
 	Listen(func([]byte, APICaller))
+	SelfID() int64
 }
 
 // BotConfig 运行中bot的配置，是Run函数的参数的拷贝
@@ -44,6 +45,26 @@ func Run(op Config) {
 	for _, driver := range op.Driver {
 		driver.Connect()
 		go driver.Listen(processEvent)
+	}
+}
+
+// RunAndBlock 主函数初始化并阻塞
+func RunAndBlock(op Config) {
+	BotConfig = op
+	switch len(op.Driver) {
+	case 0:
+		return
+	case 1:
+		op.Driver[0].Connect()
+		op.Driver[0].Listen(processEvent)
+	default:
+		i := 0
+		for ; i < len(op.Driver)-1; i++ {
+			op.Driver[i].Connect()
+			go op.Driver[i].Listen(processEvent)
+		}
+		op.Driver[i].Connect()
+		op.Driver[i].Listen(processEvent)
 	}
 }
 
@@ -85,6 +106,7 @@ loop:
 		matcherLock.RLock()
 		m := matcher.copy()
 		matcherLock.RUnlock()
+		ctx.ma = m
 		for _, rule := range m.Rules {
 			if rule != nil && !rule(ctx) { // 有 Rule 的条件未满足
 				continue loop
@@ -100,7 +122,6 @@ loop:
 			}
 		}
 
-		ctx.ma = matcher
 		if m.Handler != nil {
 			m.Handler(ctx) // 处理事件
 		}
@@ -115,7 +136,7 @@ loop:
 			}
 		}
 
-		if matcher.Block { // 阻断后续
+		if m.Block { // 阻断后续
 			break loop
 		}
 	}
@@ -141,12 +162,13 @@ func preprocessMessageEvent(e *Event) {
 			if e.Message == nil || len(e.Message) == 0 || e.Message[0].Type != "text" {
 				return
 			}
-			e.Message[0].Data["text"] = strings.TrimLeft(e.Message[0].Data["text"], " ") // Trim!
-			text := e.Message[0].Data["text"]
+			first := e.Message[0]
+			first.Data["text"] = strings.TrimLeft(first.Data["text"], " ") // Trim!
+			text := first.Data["text"]
 			for _, nickname := range BotConfig.NickName {
 				if strings.HasPrefix(text, nickname) {
 					e.IsToMe = true
-					e.Message[0].Data["text"] = text[len(nickname):]
+					first.Data["text"] = text[len(nickname):]
 					return
 				}
 			}
@@ -155,10 +177,9 @@ func preprocessMessageEvent(e *Event) {
 		e.IsToMe = true // 私聊也判断为at
 		log.Infof("收到私聊消息 %v : %v", e.Sender.String(), e.RawMessage)
 	}
-	if e.Message == nil || len(e.Message) == 0 || e.Message[0].Type != "text" {
-		return
+	if len(e.Message) > 0 && e.Message[0].Type == "text" { // Trim Again!
+		e.Message[0].Data["text"] = strings.TrimLeft(e.Message[0].Data["text"], " ")
 	}
-	e.Message[0].Data["text"] = strings.TrimLeft(e.Message[0].Data["text"], " ") // Trim Again!
 }
 
 // preprocessNoticeEvent 更新事件

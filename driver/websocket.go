@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -9,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	jsoniter "github.com/json-iterator/go"
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
 
@@ -19,7 +19,6 @@ import (
 
 var (
 	nullResponse = zero.APIResponse{}
-	json         = jsoniter.ConfigFastest
 )
 
 // WSClient ...
@@ -116,7 +115,7 @@ func (ws *WSClient) nextSeq() uint64 {
 
 // CallApi 发送ws请求
 func (ws *WSClient) CallApi(req zero.APIRequest) (zero.APIResponse, error) {
-	ch := make(chan zero.APIResponse)
+	ch := make(chan zero.APIResponse, 1)
 	req.Echo = ws.nextSeq()
 	ws.seqMap.Store(req.Echo, ch)
 	data, err := json.Marshal(req)
@@ -144,4 +143,9 @@ func (ws *WSClient) CallApi(req zero.APIRequest) (zero.APIResponse, error) {
 		ws.seqMap.Delete(req.Echo)
 		return nullResponse, errors.New("timed out")
 	}
+}
+
+// SelfID 获得 bot qq 号
+func (ws *WSClient) SelfID() int64 {
+	return ws.selfID
 }

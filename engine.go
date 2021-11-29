@@ -14,6 +14,20 @@ var defaultEngine = New()
 type Engine struct {
 	preHandler  []Rule
 	postHandler []Handler
+	block       bool
+	matchers    []*Matcher
+}
+
+// Delete 移除该 Engine 注册的所有 Matchers
+func (e *Engine) Delete() {
+	for _, m := range e.matchers {
+		m.Delete()
+	}
+}
+
+func (e *Engine) SetBlock(block bool) *Engine {
+	e.block = block
+	return e
 }
 
 // UsePreHandler 向该 Engine 添加新 PreHandler(Rule),
@@ -44,6 +58,7 @@ func (e *Engine) On(typ string, rules ...Rule) *Matcher {
 		Rules:  rules,
 		Engine: e,
 	}
+	e.matchers = append(e.matchers, matcher)
 	return StoreMatcher(matcher)
 }
 
@@ -81,6 +96,7 @@ func (e *Engine) OnPrefix(prefix string, rules ...Rule) *Matcher {
 		Rules:  append([]Rule{PrefixRule(prefix)}, rules...),
 		Engine: e,
 	}
+	e.matchers = append(e.matchers, matcher)
 	return StoreMatcher(matcher)
 }
 
@@ -94,6 +110,7 @@ func (e *Engine) OnSuffix(suffix string, rules ...Rule) *Matcher {
 		Rules:  append([]Rule{SuffixRule(suffix)}, rules...),
 		Engine: e,
 	}
+	e.matchers = append(e.matchers, matcher)
 	return StoreMatcher(matcher)
 }
 
@@ -109,6 +126,7 @@ func (e *Engine) OnCommand(commands string, rules ...Rule) *Matcher {
 		Rules:  append([]Rule{CommandRule(commands)}, rules...),
 		Engine: e,
 	}
+	e.matchers = append(e.matchers, matcher)
 	return StoreMatcher(matcher)
 }
 
@@ -124,6 +142,7 @@ func (e *Engine) OnRegex(regexPattern string, rules ...Rule) *Matcher {
 		Rules:  append([]Rule{RegexRule(regexPattern)}, rules...),
 		Engine: e,
 	}
+	e.matchers = append(e.matchers, matcher)
 	return StoreMatcher(matcher)
 }
 
@@ -139,6 +158,7 @@ func (e *Engine) OnKeyword(keyword string, rules ...Rule) *Matcher {
 		Rules:  append([]Rule{KeywordRule(keyword)}, rules...),
 		Engine: e,
 	}
+	e.matchers = append(e.matchers, matcher)
 	return StoreMatcher(matcher)
 }
 
@@ -154,6 +174,7 @@ func (e *Engine) OnFullMatch(src string, rules ...Rule) *Matcher {
 		Rules:  append([]Rule{FullMatchRule(src)}, rules...),
 		Engine: e,
 	}
+	e.matchers = append(e.matchers, matcher)
 	return StoreMatcher(matcher)
 }
 
@@ -169,6 +190,7 @@ func (e *Engine) OnFullMatchGroup(src []string, rules ...Rule) *Matcher {
 		Rules:  append([]Rule{FullMatchRule(src...)}, rules...),
 		Engine: e,
 	}
+	e.matchers = append(e.matchers, matcher)
 	return StoreMatcher(matcher)
 }
 
@@ -184,6 +206,7 @@ func (e *Engine) OnKeywordGroup(keywords []string, rules ...Rule) *Matcher {
 		Rules:  append([]Rule{KeywordRule(keywords...)}, rules...),
 		Engine: e,
 	}
+	e.matchers = append(e.matchers, matcher)
 	return StoreMatcher(matcher)
 }
 
@@ -209,6 +232,7 @@ func (e *Engine) OnPrefixGroup(prefix []string, rules ...Rule) *Matcher {
 		Rules:  append([]Rule{PrefixRule(prefix...)}, rules...),
 		Engine: e,
 	}
+	e.matchers = append(e.matchers, matcher)
 	return StoreMatcher(matcher)
 }
 
@@ -224,5 +248,16 @@ func (e *Engine) OnSuffixGroup(suffix []string, rules ...Rule) *Matcher {
 		Rules:  append([]Rule{SuffixRule(suffix...)}, rules...),
 		Engine: e,
 	}
+	e.matchers = append(e.matchers, matcher)
 	return StoreMatcher(matcher)
+}
+
+// OnShell shell命令触发器
+func OnShell(command string, model interface{}, rules ...Rule) *Matcher {
+	return defaultEngine.OnShell(command, model, rules...)
+}
+
+// OnShell shell命令触发器
+func (e *Engine) OnShell(command string, model interface{}, rules ...Rule) *Matcher {
+	return e.On("message", append([]Rule{ShellRule(command, model)}, rules...)...)
 }
